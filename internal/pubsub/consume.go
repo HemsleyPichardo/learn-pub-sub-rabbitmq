@@ -1,6 +1,8 @@
 package pubsub
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 
@@ -71,6 +73,54 @@ func SubscribeJSON[T any](
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
 	handler func(T) Acktype,
 ) error {
+	return subscribe[T](
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		func(data []byte) (T, error) {
+			var message T
+			err := json.Unmarshal(data, &message)
+			return message, err
+		},
+	)
+
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) Acktype,
+) error {
+	return subscribe[T](
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		func(data []byte) (T, error) {
+			var target T
+			err := gob.NewDecoder(bytes.NewBuffer(data)).Decode(&target)
+			return target, err
+		},
+	)
+}
+
+func subscribe[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) Acktype,
+	unmarshaller func([]byte) (T, error),
+) error {
 	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
 		return fmt.Errorf("could not declare and bind queue: %v", err)
@@ -91,11 +141,9 @@ func SubscribeJSON[T any](
 
 	go func() {
 		for delivery := range msgs {
-			var message T
-
-			err := json.Unmarshal(delivery.Body, &message)
+			message, err := unmarshaller(delivery.Body)
 			if err != nil {
-				fmt.Printf("could no unmarshal message: %v\n", err)
+				fmt.Printf("could not unmarshal message: %v\n", err)
 				continue
 			}
 
