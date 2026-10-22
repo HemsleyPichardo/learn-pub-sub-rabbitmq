@@ -40,9 +40,9 @@ func handlerMove(gs *gamelogic.GameState, publishCh *amqp.Channel) func(gamelogi
 			)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
-				return pubsub.NackDiscard
+				return pubsub.NackRequeue
 			}
-			return pubsub.NackRequeue
+			return pubsub.Ack
 		default:
 			fmt.Println("Unknown move type")
 			return pubsub.NackDiscard
@@ -56,19 +56,19 @@ func handlerWar(gs *gamelogic.GameState) func(rw gamelogic.RecognitionOfWar) pub
 		warOutcome, _, _ := gs.HandleWar(rw)
 
 		switch warOutcome {
-			case gamelogic.WarOutcomeNotInvolved:
-				return pubsub.NackRequeue
-			case gamelogic.WarOutcomeNoUnits:
-				return pubsub.NackDiscard
-			case gamelogic.WarOutcomeYouWon:
-				return pubsub.Ack
-			case gamelogic.WarOutcomeOpponentWon:
-				return pubsub.Ack
-			case gamelogic.WarOutcomeDraw:
-				return pubsub.Ack
-			default:
-				fmt.Println("Unknown war outcome")
-				return pubsub.NackDiscard
+		case gamelogic.WarOutcomeNotInvolved:
+			return pubsub.NackRequeue
+		case gamelogic.WarOutcomeNoUnits:
+			return pubsub.NackDiscard
+		case gamelogic.WarOutcomeYouWon:
+			return pubsub.Ack
+		case gamelogic.WarOutcomeOpponentWon:
+			return pubsub.Ack
+		case gamelogic.WarOutcomeDraw:
+			return pubsub.Ack
+		default:
+			fmt.Println("Unknown war outcome")
+			return pubsub.NackDiscard
 
 		}
 	}
